@@ -1,4 +1,11 @@
-import { Timestamp, addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  Timestamp,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { db, storage } from "../firebaseConfig";
@@ -6,12 +13,12 @@ import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 
 function Edit() {
   const { id } = useParams();
-  const [blogData,setBlogData] = useState({});
+  const [blogData, setBlogData] = useState({});
   const navigate = useNavigate();
 
-
   const [progress, setProgress] = useState(0);
-  
+  const [imgFlag, setImgFlag] = useState(0);
+
   useEffect(() => {
     const blogsRef = doc(db, "Blogs", id);
     const blog = getDoc(blogsRef);
@@ -23,28 +30,25 @@ function Edit() {
         author: fetchedData.author,
         summary: fetchedData.summary,
         imageUrl: fetchedData.imageUrl,
-        createdAt: fetchedData.createdAt 
-      })
-    })
+        createdAt: fetchedData.createdAt,
+      });
+      console.log(fetchedData.imageUrl);
+    });
   }, []);
-  
 
   const handleOnChange = (e) => {
     e.preventDefault();
-    setBlogData({...blogData,
-      [e.target.name]: e.target.value
-    })
+    setBlogData({ ...blogData, [e.target.name]: e.target.value });
   };
-  
-
 
   const handleImageChange = (e) => {
     e.preventDefault();
     setBlogData({ ...blogData, imageUrl: e.target.files[0] });
+    setImgFlag(1);
   };
 
-  const handlePublish = (e) => {
-    e.preventDefault(); 
+  const handlePublish = async (e) => {
+    e.preventDefault();
 
     const storageRef = ref(
       storage,
@@ -53,57 +57,47 @@ function Edit() {
 
     const uploadImage = uploadBytesResumable(storageRef, blogData.imageUrl);
 
-    uploadImage.on(
-      "state_changed",
-      (snapshot) => {
-        const progressPercent = Math.round(
-          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        );
-        setProgress(progressPercent);
-      },
-      (err) => {
-        console.log(err);
-      },
-      () => {
-        // setBlogData({
-        //   title: "",
-        //   author: "",
-        //   summary: "",
-        //   image: "",
-        //   descrption: "",
-        // });
+    if (imgFlag) {
+      uploadImage.on(
+        "state_changed",
+        (snapshot) => {
+          const progressPercent = Math.round(
+            (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+          );
+          setProgress(progressPercent);
+        },
+        (err) => {
+          console.log(err);
+        },
+        () => {
+          getDownloadURL(uploadImage.snapshot.ref)
+            .then(async (urlImage) => {
+              console.log(urlImage);
 
-        getDownloadURL(uploadImage.snapshot.ref).then( async (urlImage) => {
-          console.log(urlImage)
-
-          await setDoc(doc(db, "Blogs", id), {
-            title: blogData.title,
-            author: blogData.author,
-            summary: blogData.summary,
-            imageUrl: urlImage,
-            createdAt: blogData.createdAt 
-          } )
-          // // addDoc(blogsRef, {
-          // //   title: formData.title,
-          // //   author: formData.author,
-          // //   summary: formData.summary,
-          // //   imageUrl: url,
-          // //   createdAt: Timestamp.now().toDate(),
-          // // })
-            // .then(() => {
-            //   console.log("Form data", blogData)
-            //   // alert("Blog Updated Successfully");
-            //   // setProgress(0);
-            //   // navigate("/");
-            // })
-            // .catch((err) => {
-            //   alert("Error: " + err);
-            // });
-        }).then(() => {
-          navigate("/")
-        })
-      }
-    );
+              await setDoc(doc(db, "Blogs", id), {
+                title: blogData.title,
+                author: blogData.author,
+                summary: blogData.summary,
+                imageUrl: urlImage,
+                createdAt: blogData.createdAt,
+              });
+            })
+            .then(() => {
+              navigate("/");
+            });
+        }
+      );
+    } else {
+      await setDoc(doc(db, "Blogs", id), {
+        title: blogData.title,
+        author: blogData.author,
+        summary: blogData.summary,
+        imageUrl: blogData.imageUrl,
+        createdAt: blogData.createdAt,
+      }).then(() => {
+        navigate("/");
+      });
+    }
   };
 
   return (
@@ -135,6 +129,7 @@ function Edit() {
           type="file"
           name="imageUrl"
           id="imageUrl"
+          // value={blogData.imageUrl.toString()}
           onChange={handleImageChange}
         />
         <textarea
